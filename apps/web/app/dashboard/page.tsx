@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Sparkles,
@@ -22,19 +23,34 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { getPayload, signOut } from "@/lib/auth";
 
 const MOCK_PROJECTS = [
   { id: "p1", title: "Todo App", initialPrompt: "Build a todo app with local storage and dark mode", updatedAt: "2 hours ago" },
-  { id: "p2", title: "Landing Page", initialPrompt: "Create a SaaS landing page with hero, features and pricing", updatedAt: "Yesterday" },
-  { id: "p3", title: "Dashboard UI", initialPrompt: "Build an analytics dashboard with charts and a sidebar", updatedAt: "3 days ago" },
 ];
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [title, setTitle] = useState("");
   const [prompt, setPrompt] = useState("");
   const [creating, setCreating] = useState(false);
+  const [username, setUsername] = useState("");
+
+  useEffect(() => {
+    const payload = getPayload();
+    if (!payload) {
+      router.replace("/");
+      return;
+    }
+    setUsername(payload.username);
+  }, [router]);
+
+  function handleSignOut() {
+    signOut();
+    router.push("/");
+  }
 
   const filtered = MOCK_PROJECTS.filter(
     (p) =>
@@ -62,8 +78,8 @@ export default function DashboardPage() {
             <span className="font-semibold">Lovable</span>
           </Link>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground hidden sm:block">rohan</span>
-            <Button variant="ghost" size="icon" title="Sign out">
+            {username && <span className="text-sm text-muted-foreground hidden sm:block">{username}</span>}
+            <Button variant="ghost" size="icon" title="Sign out" onClick={handleSignOut}>
               <LogOut className="h-4 w-4" />
             </Button>
           </div>

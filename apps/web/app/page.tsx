@@ -55,7 +55,7 @@ export default function HomePage() {
 
   function onAuthSuccess() {
     setAuthOpen(false);
-    router.push("/project/new");
+    router.push("/dashboard");
   }
 
   return (

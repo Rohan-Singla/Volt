@@ -13,7 +13,7 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
 
-app.use(authRouter);
+app.use("/auth", authRouter);
 app.use(projectRouter);
 
 app.listen(PORT, () => {

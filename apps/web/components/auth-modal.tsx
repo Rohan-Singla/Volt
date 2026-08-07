@@ -9,9 +9,12 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { saveToken } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 interface AuthModalProps {
   open: boolean;
@@ -32,10 +35,28 @@ export function AuthModal({ open, onOpenChange, onSuccess, initialPrompt }: Auth
     e.preventDefault();
     setError("");
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+
+    try {
+      const res = await fetch(`${API_URL}/auth/${mode}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.message ?? "Something went wrong");
+        return;
+      }
+
+      saveToken(data.token);
       onSuccess();
-    }, 900);
+    } catch {
+      setError("Could not reach server. Is the backend running?");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

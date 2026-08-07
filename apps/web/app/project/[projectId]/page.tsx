@@ -36,7 +36,7 @@ interface Message {
 const MOCK_MESSAGES: Message[] = [
   { id: "1", from: "USER", type: "TEXT_MESSAGE", contents: "Build me a todo app with local storage" },
   { id: "2", from: "ASSISTANT", type: "TEXT_MESSAGE", contents: "I'll build a todo app with local storage for you. Let me create the files now." },
-  { id: "3", from: "ASSISTANT", type: "TOOL_CALL", contents: 'src/App.tsx\n\nimport { useState, useEffect } from "react"\n...\n', toolCall: "WRITE_FILE" },
+  { id: "3", from: "ASSISTANT", type:  "TOOL_CALL", contents: 'src/App.tsx\n\nimport { useState, useEffect } from "react"\n...\n', toolCall: "WRITE_FILE" },
   { id: "4", from: "ASSISTANT", type: "TEXT_MESSAGE", contents: "Done! Your todo app is live. It supports adding, completing, and deleting todos — all persisted in localStorage." },
 ];
 
