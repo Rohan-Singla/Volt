@@ -89,5 +89,3 @@ DELETE /sandbox/:projectId
 pnpm install
 pnpm dev        # runs all apps via turborepo
 ```
- 
-(Fill in env vars, k8s cluster config, and Gemini API key setup here as they're finalized.)
