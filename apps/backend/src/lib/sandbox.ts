@@ -14,6 +14,29 @@ export default defineConfig({
 })
 `;
 
+const TAILWIND_CONFIG = `/** @type {import('tailwindcss').Config} */
+export default {
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  theme: { extend: {} },
+  plugins: [],
+}
+`;
+
+const POSTCSS_CONFIG = `export default {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+}
+`;
+
+const INDEX_CSS = `@tailwind base;
+@tailwind components;
+@tailwind utilities;
+`;
+
+const APP_CSS = ``;
+
 export async function getOrCreateSandbox(sandboxId: string | null): Promise<Sandbox> {
   if (sandboxId) {
     try {
@@ -38,7 +61,13 @@ async function bootstrapSandbox(sandbox: Sandbox) {
   await run("node --version && npm --version");
   await run("cd /home/user && npx --yes create-vite@5 app --template react-ts", 120000);
   await run("cd /home/user/app && npm install", 120000);
+  await run("cd /home/user/app && npm install -D tailwindcss@3 postcss autoprefixer", 120000);
+
   await sandbox.files.write("/home/user/app/vite.config.ts", VITE_CONFIG);
+  await sandbox.files.write("/home/user/app/tailwind.config.js", TAILWIND_CONFIG);
+  await sandbox.files.write("/home/user/app/postcss.config.js", POSTCSS_CONFIG);
+  await sandbox.files.write("/home/user/app/src/index.css", INDEX_CSS);
+  await sandbox.files.write("/home/user/app/src/App.css", APP_CSS);
 }
 
 async function isDevServerRunning(sandbox: Sandbox): Promise<boolean> {

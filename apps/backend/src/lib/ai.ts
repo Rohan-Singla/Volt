@@ -54,16 +54,17 @@ const TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
 ];
 
 const SYSTEM_PROMPT = `You are an expert web developer building apps inside a Linux sandbox.
-A Vite + React + TypeScript project is already scaffolded at /home/user/app and the dev server is already running on port 5173 with HMR enabled.
+A Vite + React + TypeScript project is already scaffolded at /home/user/app.
+Tailwind CSS v3 is already installed and configured — use it freely without installing anything.
+The dev server is already running on port 5173 with HMR — file changes are picked up automatically.
 
 Rules:
 - Always work inside /home/user/app
 - Use the provided tools to read, write, and run commands
-- NEVER start, stop, restart, or kill the dev server — it is already running and HMR picks up all file changes automatically
+- NEVER start, stop, restart, or kill the dev server
 - NEVER run npm run dev, pkill vite, or any process management commands
-- Write clean, modern React + TypeScript code
-- Use Tailwind CSS for styling if needed (install with: npm install -D tailwindcss@3 postcss autoprefixer && npx tailwindcss init -p)
-- You may run npm install to add packages
+- Write clean, modern React + TypeScript with Tailwind CSS
+- You may run npm install to add third-party packages (charts, icons, etc.)
 - When you are done, respond with a plain text summary of what you built — no tool calls in the final message`;
 
 export interface ConversationEntry {

@@ -2,8 +2,10 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Sparkles, ArrowUp, Code2, Globe, Layers } from "lucide-react";
 import { AuthModal } from "@/components/auth-modal";
+import { getPayload } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 const SUGGESTIONS = [
@@ -26,7 +28,13 @@ export default function HomePage() {
   const [prompt, setPrompt] = useState("");
   const [authOpen, setAuthOpen] = useState(false);
   const [pending, setPending] = useState("");
+  const [username, setUsername] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const payload = getPayload();
+    if (payload) setUsername(payload.username);
+  }, []);
 
   function autoResize() {
     const el = textareaRef.current;
@@ -42,8 +50,12 @@ export default function HomePage() {
   function submit(value: string) {
     const trimmed = value.trim();
     if (!trimmed) return;
-    setPending(trimmed);
-    setAuthOpen(true);
+    if (username) {
+      router.push("/dashboard");
+    } else {
+      setPending(trimmed);
+      setAuthOpen(true);
+    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
