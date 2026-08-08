@@ -21,6 +21,8 @@ model Project {
   userId              String
   user                User                  @relation(fields: [userId], references: [id])
   conversationHistory ConversationHistory[]
+  sandboxId           String?
+  previewUrl          String?
   createdAt           DateTime              @default(now())
 }
 

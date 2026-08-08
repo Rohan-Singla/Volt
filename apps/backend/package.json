@@ -8,12 +8,15 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@google/genai": "^2.16.0",
     "@repo/db": "workspace:*",
     "@repo/shared-types": "workspace:*",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
+    "e2b": "^2.38.2",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
+    "openai": "^7.4.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
