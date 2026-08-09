@@ -110,6 +110,49 @@ projectRouter.get("/projects/:projectId/file", requireAuth, async (req: AuthRequ
   }
 });
 
+projectRouter.post("/projects/:projectId/sandbox/wake", requireAuth, async (req: AuthRequest, res) => {
+  const project = await prisma.project.findFirst({
+    where: { id: req.params.projectId as string, userId: req.userId! },
+    select: { id: true, sandboxId: true },
+  });
+  if (!project) { res.status(404).json({ message: "Project not found" }); return; }
+
+  const { sandbox, isNew } = await getOrCreateSandbox(project.sandboxId ?? null);
+  const previewUrl = getPreviewUrl(sandbox);
+
+  await prisma.project.update({
+    where: { id: project.id },
+    data: { sandboxId: sandbox.sandboxId, previewUrl },
+  });
+
+  if (isNew && project.sandboxId) {
+    const saved = await restoreFromR2(project.id);
+    if (saved.length > 0) await restoreFilesToSandbox(sandbox, saved);
+  }
+
+  await ensureDevServer(sandbox);
+  res.json({ previewUrl });
+});
+
+projectRouter.get("/projects/:projectId/sandbox/health", requireAuth, async (req: AuthRequest, res) => {
+  const project = await prisma.project.findFirst({
+    where: { id: req.params.projectId as string, userId: req.userId! },
+    select: { sandboxId: true, previewUrl: true },
+  });
+
+  if (!project?.sandboxId || !project.previewUrl) {
+    res.json({ alive: false });
+    return;
+  }
+
+  try {
+    const response = await fetch(project.previewUrl, { signal: AbortSignal.timeout(5000) });
+    res.json({ alive: response.ok || response.status < 500 });
+  } catch {
+    res.json({ alive: false });
+  }
+});
+
 projectRouter.post("/projects/:projectId/messages", requireAuth, async (req: AuthRequest, res) => {
   const schema = z.object({ message: z.string().min(1) });
   const result = schema.safeParse(req.body);

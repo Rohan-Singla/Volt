@@ -62,9 +62,10 @@ function ChatMessage({ msg }: { msg: Message }) {
   );
 }
 
-function PreviewPanel({ previewUrl, onReload, isSending }: { previewUrl: string | null; onReload: () => void; isSending: boolean }) {
+function PreviewPanel({ previewUrl, onReload, isSending, projectId, onPreviewUrl }: { previewUrl: string | null; onReload: () => void; isSending: boolean; projectId: string; onPreviewUrl: (url: string) => void }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [sleeping, setSleeping] = useState(false);
+  const [waking, setWaking] = useState(false);
 
   useEffect(() => {
     setSleeping(false);
@@ -72,6 +73,32 @@ function PreviewPanel({ previewUrl, onReload, isSending }: { previewUrl: string 
       iframeRef.current.src = previewUrl;
     }
   }, [previewUrl]);
+
+  useEffect(() => {
+    if (!previewUrl || isSending) return;
+    setSleeping(false);
+    if (iframeRef.current) iframeRef.current.src = previewUrl;
+    const check = () =>
+      api.get<{ alive: boolean }>(`/projects/${projectId}/sandbox/health`)
+        .then((r) => setSleeping(!r.alive))
+        .catch(() => setSleeping(true));
+    const id = setInterval(check, 30000);
+    return () => clearInterval(id);
+  }, [previewUrl, isSending, projectId]);
+
+  async function handleWake() {
+    setWaking(true);
+    try {
+      const { previewUrl: newUrl } = await api.post<{ previewUrl: string }>(`/projects/${projectId}/sandbox/wake`, {});
+      onPreviewUrl(newUrl);
+      setSleeping(false);
+      if (iframeRef.current) iframeRef.current.src = newUrl;
+    } catch {
+      // keep sleeping state, user can retry
+    } finally {
+      setWaking(false);
+    }
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -100,21 +127,22 @@ function PreviewPanel({ previewUrl, onReload, isSending }: { previewUrl: string 
               src={previewUrl}
               className={cn("w-full h-full border-0", sleeping && "invisible")}
               title="Live preview"
-              onError={() => setSleeping(true)}
             />
-            {sleeping && !isSending && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-4 bg-zinc-50">
+            {sleeping && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-center px-4 bg-zinc-50">
                 <div className="h-12 w-12 rounded-full bg-zinc-100 flex items-center justify-center">
-                  <Eye className="h-5 w-5 text-zinc-400" />
+                  {waking ? <Loader2 className="h-5 w-5 text-zinc-400 animate-spin" /> : <Eye className="h-5 w-5 text-zinc-400" />}
                 </div>
-                <p className="text-sm font-medium text-zinc-600">Sandbox is sleeping</p>
-                <p className="text-xs text-zinc-400">Send a message to wake it up — your code is saved.</p>
-              </div>
-            )}
-            {isSending && sleeping && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-50">
-                <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
-                <p className="text-xs text-zinc-400">Waking up sandbox...</p>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-zinc-600">{waking ? "Waking up sandbox..." : "Sandbox is sleeping"}</p>
+                  <p className="text-xs text-zinc-400">{waking ? "This usually takes about a minute." : "Your code is saved."}</p>
+                </div>
+                {!waking && (
+                  <Button size="sm" onClick={handleWake} className="gap-2">
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Wake up sandbox
+                  </Button>
+                )}
               </div>
             )}
           </>
@@ -541,7 +569,7 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
           </div>
           <div className="flex-1 overflow-hidden">
             {rightTab === "preview" ? (
-              <PreviewPanel previewUrl={previewUrl} onReload={reloadPreview} isSending={sending} />
+              <PreviewPanel previewUrl={previewUrl} onReload={reloadPreview} isSending={sending} projectId={projectId} onPreviewUrl={setPreviewUrl} />
             ) : (
               <CodePanel projectId={projectId} refreshKey={codeRefreshKey} />
             )}
