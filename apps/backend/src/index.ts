@@ -17,6 +17,6 @@ app.use("/auth", authRouter);
 app.use(projectRouter);
 
 app.listen(PORT, () => {
-  console.log(`primary-backend listening on http://localhost:${PORT}`);
+  console.log(`Volt backend listening on http://localhost:${PORT}`);
 });
   

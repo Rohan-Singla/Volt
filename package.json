@@ -1,5 +1,5 @@
 {
-  "name": "lovable-clone",
+  "name": "volt",
   "devDependencies": {
     "turbo": "^2.5.0",
     "typescript": "^5.8.0"

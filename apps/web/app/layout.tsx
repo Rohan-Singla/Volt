@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Lovable Clone — Build apps with AI",
-  description: "Chat with an AI agent to generate, edit, and preview live web apps.",
+  title: "Volt — Build apps with AI",
+  description: "Describe your app and Volt will write, run, and preview it live.",
 };
 
 export default function RootLayout({

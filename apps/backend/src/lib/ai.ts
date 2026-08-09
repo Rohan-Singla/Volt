@@ -72,11 +72,16 @@ export interface ConversationEntry {
   content: string;
 }
 
+export type StreamEvent =
+  | { type: "status"; text: string }
+  | { type: "tool"; name: string; detail: string }
+  | { type: "done"; aiText: string; previewUrl: string; messageId?: string };
+
 export async function runAILoop(
   sandbox: Sandbox,
   history: ConversationEntry[],
   userMessage: string,
-  onToolCall?: (name: string, args: Record<string, string>) => void
+  onEvent?: (event: StreamEvent) => void
 ): Promise<string> {
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system", content: SYSTEM_PROMPT },
@@ -107,7 +112,8 @@ export async function runAILoop(
       if (call.type !== "function") continue;
       const fn = (call as OpenAI.Chat.ChatCompletionMessageFunctionToolCall).function;
       const args = JSON.parse(fn.arguments) as Record<string, string>;
-      onToolCall?.(fn.name, args);
+      const detail = fn.name === "write_file" ? args.path : fn.name === "read_file" ? args.path : args.command ?? "";
+      onEvent?.({ type: "tool", name: fn.name, detail });
 
       let result: string;
       if (fn.name === "read_file") {

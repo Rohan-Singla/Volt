@@ -8,6 +8,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1106.0",
     "@google/genai": "^2.16.0",
     "@repo/db": "workspace:*",
     "@repo/shared-types": "workspace:*",

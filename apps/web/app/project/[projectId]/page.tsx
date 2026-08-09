@@ -9,160 +9,39 @@ import {
   Eye,
   ChevronLeft,
   RotateCcw,
-  Copy,
-  Check,
-  Loader2,
   ExternalLink,
+  Loader2,
   Terminal,
-  FileText,
+  FileCode2,
+  FolderOpen,
+  File,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-
-type MessageFrom = "USER" | "ASSISTANT";
-type EntryType = "TEXT_MESSAGE" | "TOOL_CALL";
+import { api } from "@/lib/api";
+import { getToken } from "@/lib/auth";
 
 interface Message {
   id: string;
-  from: MessageFrom;
-  type: EntryType;
+  from: "USER" | "ASSISTANT";
+  type: "TEXT_MESSAGE" | "TOOL_CALL";
   contents: string;
-  toolCall?: string;
+  toolCall?: string | null;
 }
 
-const MOCK_MESSAGES: Message[] = [
-  { id: "1", from: "USER", type: "TEXT_MESSAGE", contents: "Build me a todo app with local storage" },
-  { id: "2", from: "ASSISTANT", type: "TEXT_MESSAGE", contents: "I'll build a todo app with local storage for you. Let me create the files now." },
-  { id: "3", from: "ASSISTANT", type:  "TOOL_CALL", contents: 'src/App.tsx\n\nimport { useState, useEffect } from "react"\n...\n', toolCall: "WRITE_FILE" },
-  { id: "4", from: "ASSISTANT", type: "TEXT_MESSAGE", contents: "Done! Your todo app is live. It supports adding, completing, and deleting todos — all persisted in localStorage." },
-];
-
-const MOCK_FILES = [
-  {
-    name: "src/App.tsx", content: `import { useState, useEffect } from "react"
-
-interface Todo {
-  id: number
-  text: string
-  done: boolean
-}
-
-export default function App() {
-  const [todos, setTodos] = useState<Todo[]>(() => {
-    const saved = localStorage.getItem("todos")
-    return saved ? JSON.parse(saved) : []
-  })
-  const [input, setInput] = useState("")
-
-  useEffect(() => {
-    localStorage.setItem("todos", JSON.stringify(todos))
-  }, [todos])
-
-  function addTodo() {
-    if (!input.trim()) return
-    setTodos([...todos, { id: Date.now(), text: input, done: false }])
-    setInput("")
-  }
-
-  function toggleTodo(id: number) {
-    setTodos(todos.map(t => t.id === id ? { ...t, done: !t.done } : t))
-  }
-
-  function deleteTodo(id: number) {
-    setTodos(todos.filter(t => t.id !== id))
-  }
-
-  return (
-    <div className="max-w-md mx-auto p-8">
-      <h1 className="text-2xl font-bold mb-6">My Todos</h1>
-      <div className="flex gap-2 mb-4">
-        <input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && addTodo()}
-          placeholder="Add a todo..."
-          className="flex-1 border rounded px-3 py-2"
-        />
-        <button onClick={addTodo} className="bg-blue-500 text-white px-4 py-2 rounded">
-          Add
-        </button>
-      </div>
-      <ul className="space-y-2">
-        {todos.map(todo => (
-          <li key={todo.id} className="flex items-center gap-2 p-3 border rounded">
-            <input type="checkbox" checked={todo.done} onChange={() => toggleTodo(todo.id)} />
-            <span className={todo.done ? "line-through text-gray-400" : ""}>{todo.text}</span>
-            <button onClick={() => deleteTodo(todo.id)} className="ml-auto text-red-500 text-sm">
-              delete
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}`,
-  },
-  {
-    name: "src/main.tsx", content: `import React from "react"
-import ReactDOM from "react-dom/client"
-import App from "./App"
-import "./index.css"
-
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-)`,
-  },
-  {
-    name: "index.html", content: `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Todo App</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>`,
-  },
-];
-
-function ToolCallBadge({ toolCall }: { toolCall: string }) {
-  const colors: Record<string, string> = {
-    WRITE_FILE: "text-emerald-400 border-emerald-400/30 bg-emerald-400/10",
-    READ_FILE: "text-blue-400 border-blue-400/30 bg-blue-400/10",
-    DELETE_FILE: "text-red-400 border-red-400/30 bg-red-400/10",
-    UPDATE_FILE: "text-yellow-400 border-yellow-400/30 bg-yellow-400/10",
-  };
-  return (
-    <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded border font-mono", colors[toolCall] ?? "text-muted-foreground border-border")}>
-      <Terminal className="h-3 w-3" />
-      {toolCall.toLowerCase()}
-    </span>
-  );
+interface Project {
+  id: string;
+  title: string;
+  initialPrompt: string;
+  previewUrl: string | null;
+  conversationHistory: Message[];
 }
 
 function ChatMessage({ msg }: { msg: Message }) {
   const isUser = msg.from === "USER";
-  const isToolCall = msg.type === "TOOL_CALL";
-
-  if (isToolCall) {
-    return (
-      <div className="space-y-1.5">
-        <div className="flex items-center gap-2">
-          {msg.toolCall && <ToolCallBadge toolCall={msg.toolCall} />}
-        </div>
-        <pre className="text-xs font-mono text-muted-foreground bg-muted/50 rounded-lg p-3 overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">
-          {msg.contents}
-        </pre>
-      </div>
-    );
-  }
 
   return (
     <div className={cn("flex gap-2.5", isUser ? "justify-end" : "justify-start")}>
@@ -173,7 +52,7 @@ function ChatMessage({ msg }: { msg: Message }) {
       )}
       <div
         className={cn(
-          "max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed",
+          "max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap",
           isUser ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
         )}
       >
@@ -183,79 +62,161 @@ function ChatMessage({ msg }: { msg: Message }) {
   );
 }
 
-function CodePanel() {
-  const [activeFile, setActiveFile] = useState(MOCK_FILES[0].name);
-  const [copied, setCopied] = useState(false);
+function PreviewPanel({ previewUrl, onReload, isSending }: { previewUrl: string | null; onReload: () => void; isSending: boolean }) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [sleeping, setSleeping] = useState(false);
 
-  const file = MOCK_FILES.find((f) => f.name === activeFile) ?? MOCK_FILES[0];
-
-  function copyCode() {
-    navigator.clipboard.writeText(file.content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
+  useEffect(() => {
+    setSleeping(false);
+    if (previewUrl && iframeRef.current) {
+      iframeRef.current.src = previewUrl;
+    }
+  }, [previewUrl]);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex items-center gap-1 px-3 border-b border-border overflow-x-auto min-h-9.5 bg-sidebar">
-        {MOCK_FILES.map((f) => (
-          <button
-            key={f.name}
-            onClick={() => setActiveFile(f.name)}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-t font-mono whitespace-nowrap transition-colors",
-              activeFile === f.name
-                ? "text-foreground bg-card border-b-2 border-primary"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <FileText className="h-3 w-3" />
-            {f.name.split("/").pop()}
-          </button>
-        ))}
-      </div>
+    <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card/50">
-        <span className="text-xs font-mono text-muted-foreground">{activeFile}</span>
-        <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={copyCode}>
-          {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-          {copied ? "Copied" : "Copy"}
-        </Button>
+        <div className="bg-muted rounded px-3 py-1 text-xs font-mono text-muted-foreground truncate max-w-xs">
+          {previewUrl ?? "Waiting for sandbox..."}
+        </div>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-7 w-7" title="Reload" onClick={onReload}>
+            <RotateCcw className="h-3.5 w-3.5" />
+          </Button>
+          {previewUrl && (
+            <Button variant="ghost" size="icon" className="h-7 w-7" title="Open in new tab" asChild>
+              <a href={previewUrl} target="_blank" rel="noreferrer">
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            </Button>
+          )}
+        </div>
       </div>
-      <div className="flex-1 overflow-auto">
-        <pre className="p-4 text-xs font-mono text-muted-foreground leading-relaxed">
-          <code>{file.content}</code>
-        </pre>
+      <div className="relative flex-1 bg-white">
+        {previewUrl ? (
+          <>
+            <iframe
+              ref={iframeRef}
+              src={previewUrl}
+              className={cn("w-full h-full border-0", sleeping && "invisible")}
+              title="Live preview"
+              onError={() => setSleeping(true)}
+            />
+            {sleeping && !isSending && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-4 bg-zinc-50">
+                <div className="h-12 w-12 rounded-full bg-zinc-100 flex items-center justify-center">
+                  <Eye className="h-5 w-5 text-zinc-400" />
+                </div>
+                <p className="text-sm font-medium text-zinc-600">Sandbox is sleeping</p>
+                <p className="text-xs text-zinc-400">Send a message to wake it up — your code is saved.</p>
+              </div>
+            )}
+            {isSending && sleeping && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-50">
+                <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
+                <p className="text-xs text-zinc-400">Waking up sandbox...</p>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-4">
+            <div className="h-12 w-12 rounded-full bg-zinc-100 flex items-center justify-center">
+              <Eye className="h-5 w-5 text-zinc-400" />
+            </div>
+            <p className="text-sm text-zinc-400">Preview appears after the first message.</p>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function PreviewPanel({ projectId }: { projectId: string }) {
-  return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card/50">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <div className="bg-muted rounded px-3 py-1 text-xs font-mono text-muted-foreground truncate max-w-xs">
-            {projectId}.lovable.app
-          </div>
-        </div>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-7 w-7" title="Reload">
-            <RotateCcw className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" title="Open in new tab">
-            <ExternalLink className="h-3.5 w-3.5" />
-          </Button>
-        </div>
+function CodePanel({ projectId, refreshKey }: { projectId: string; refreshKey: number }) {
+  const [files, setFiles] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [content, setContent] = useState<string>("");
+  const [loadingFiles, setLoadingFiles] = useState(true);
+  const [loadingContent, setLoadingContent] = useState(false);
+
+  useEffect(() => {
+    setLoadingFiles(true);
+    api.get<{ files: string[] }>(`/projects/${projectId}/files`)
+      .then((r) => {
+        setFiles(r.files);
+        if (r.files.length > 0) {
+          const preferred = r.files.find((f) => f.endsWith("App.tsx")) ?? r.files[0];
+          setSelected(preferred);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingFiles(false));
+  }, [projectId, refreshKey]);
+
+  useEffect(() => {
+    if (!selected) return;
+    setLoadingContent(true);
+    api.get<{ content: string }>(`/projects/${projectId}/file?path=${encodeURIComponent(selected)}`)
+      .then((r) => setContent(r.content))
+      .catch(() => setContent("Could not load file."))
+      .finally(() => setLoadingContent(false));
+  }, [projectId, selected]);
+
+  function fileName(path: string) {
+    return path.split("/").pop() ?? path;
+  }
+
+  if (loadingFiles) {
+    return (
+      <div className="flex items-center justify-center h-full text-muted-foreground gap-2">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        <span className="text-xs">Loading files...</span>
       </div>
-      <div className="relative flex-1 bg-white">
-        <iframe src="about:blank" className="w-full h-full" title="Live preview" />
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-4 pointer-events-none">
-          <div className="h-12 w-12 rounded-full bg-zinc-100 flex items-center justify-center">
-            <Eye className="h-5 w-5 text-zinc-400" />
+    );
+  }
+
+  if (files.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
+        <FolderOpen className="h-8 w-8" />
+        <p className="text-xs">No files yet. Send a message to start building.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full overflow-hidden">
+      <div className="w-48 shrink-0 border-r border-border overflow-y-auto bg-sidebar py-2">
+        {files.map((f) => (
+          <button
+            key={f}
+            onClick={() => setSelected(f)}
+            className={cn(
+              "w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left transition-colors",
+              selected === f
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
+            )}
+          >
+            <File className="h-3 w-3 shrink-0" />
+            <span className="truncate">{fileName(f)}</span>
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 overflow-auto bg-zinc-950 relative">
+        {loadingContent ? (
+          <div className="flex items-center justify-center h-full gap-2 text-zinc-400">
+            <Loader2 className="h-4 w-4 animate-spin" />
           </div>
-          <p className="text-sm text-zinc-400">Preview appears once the sandbox is running.</p>
-        </div>
+        ) : (
+          <>
+            <div className="sticky top-0 px-4 py-1.5 bg-zinc-900/80 backdrop-blur border-b border-zinc-800 text-xs text-zinc-400 font-mono">
+              {selected?.replace("/home/user/app/", "") ?? ""}
+            </div>
+            <pre className="p-4 text-xs text-zinc-200 font-mono leading-relaxed overflow-x-auto whitespace-pre">
+              {content}
+            </pre>
+          </>
+        )}
       </div>
     </div>
   );
@@ -267,9 +228,13 @@ const DEFAULT_WIDTH = 320;
 
 export default function ProjectPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params);
-  const [messages, setMessages] = useState<Message[]>(MOCK_MESSAGES);
+  const [project, setProject] = useState<Project | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [liveStatus, setLiveStatus] = useState<string | null>(null);
+  const [codeRefreshKey, setCodeRefreshKey] = useState(0);
   const [rightTab, setRightTab] = useState<"preview" | "code">("preview");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
@@ -279,13 +244,40 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
   const dragStartWidth = useRef(DEFAULT_WIDTH);
   const cleanupDrag = useRef<(() => void) | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => () => { cleanupDrag.current?.(); }, []);
+
+  const autoSentRef = useRef(false);
+
+  useEffect(() => {
+    api.get<Project>(`/projects/${projectId}`)
+      .then((p) => {
+        setProject(p);
+        setMessages(p.conversationHistory);
+        setPreviewUrl(p.previewUrl);
+        if (p.conversationHistory.length === 0 && p.initialPrompt && !autoSentRef.current) {
+          autoSentRef.current = true;
+          sendFirstMessage(p.initialPrompt);
+        }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  function reloadPreview() {
+    if (iframeRef.current && previewUrl) {
+      iframeRef.current.src = previewUrl;
+    }
+  }
 
   function onDividerMouseDown(e: React.MouseEvent) {
     e.preventDefault();
     cleanupDrag.current?.();
-
     dragStartX.current = e.clientX;
     dragStartWidth.current = sidebarWidth;
     holdActive.current = false;
@@ -325,61 +317,139 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
     window.addEventListener("mouseup", onMouseUp);
   }
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  function toolLabel(name: string, detail: string): string {
+    if (name === "write_file") return `Writing ${detail}`;
+    if (name === "read_file") return `Reading ${detail}`;
+    if (name === "run_shell_command") return `Running: ${detail.slice(0, 40)}`;
+    return name;
+  }
 
-  async function sendMessage() {
-    if (!input.trim() || sending) return;
+  async function streamMessage(text: string) {
     const userMsg: Message = {
       id: Date.now().toString(),
       from: "USER",
       type: "TEXT_MESSAGE",
-      contents: input.trim(),
+      contents: text,
     };
     setMessages((prev) => [...prev, userMsg]);
-    setInput("");
     setSending(true);
+    setLiveStatus("Connecting...");
 
-    setTimeout(() => {
+    const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+    const token = getToken();
+
+    try {
+      const response = await fetch(`${BASE}/projects/${projectId}/messages`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ message: text }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Server error ${response.status}: ${errText.slice(0, 200)}`);
+      }
+      if (!response.body) throw new Error("No response body");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const raw = line.slice(6).trim();
+          if (!raw) continue;
+          try {
+            const event = JSON.parse(raw) as {
+              type: "status" | "tool" | "done";
+              text?: string;
+              name?: string;
+              detail?: string;
+              aiText?: string;
+              previewUrl?: string;
+              messageId?: string;
+            };
+
+            if (event.type === "status") {
+              setLiveStatus(event.text ?? null);
+            } else if (event.type === "tool") {
+              setLiveStatus(toolLabel(event.name ?? "", event.detail ?? ""));
+            } else if (event.type === "done") {
+              setLiveStatus(null);
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: event.messageId ?? Date.now().toString(),
+                  from: "ASSISTANT",
+                  type: "TEXT_MESSAGE",
+                  contents: event.aiText ?? "Done.",
+                },
+              ]);
+              if (event.previewUrl) setPreviewUrl(event.previewUrl);
+              setCodeRefreshKey((k) => k + 1);
+            }
+          } catch {
+            // ignore malformed lines
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[SSE] error:", err);
       setMessages((prev) => [
         ...prev,
         {
           id: (Date.now() + 1).toString(),
           from: "ASSISTANT",
           type: "TEXT_MESSAGE",
-          contents: "I've updated the app as requested. Check the preview on the right.",
+          contents: err instanceof Error ? err.message : "Something went wrong.",
         },
       ]);
+    } finally {
       setSending(false);
-    }, 1500);
+      setLiveStatus(null);
+    }
+  }
+
+  async function sendFirstMessage(text: string) {
+    await streamMessage(text);
+  }
+
+  async function sendMessage() {
+    if (!input.trim() || sending) return;
+    const text = input.trim();
+    setInput("");
+    await streamMessage(text);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-      sendMessage();
-    }
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendMessage();
   }
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       <header className="flex items-center gap-3 px-4 h-12 border-b border-border bg-card/50 shrink-0">
         <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-          <Link href="/dashboard">
-            <ChevronLeft className="h-4 w-4" />
-          </Link>
+          <Link href="/dashboard"><ChevronLeft className="h-4 w-4" /></Link>
         </Button>
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-primary" />
-          <span className="font-medium text-sm">Todo App</span>
-          <Badge variant="secondary" className="text-xs h-5">
-            {projectId}
-          </Badge>
+          <span className="font-medium text-sm">{project?.title ?? "Loading..."}</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <Badge variant="outline" className="text-xs gap-1">
-            <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            Sandbox running
+            <div className={cn("h-1.5 w-1.5 rounded-full", previewUrl ? "bg-emerald-400" : "bg-muted-foreground")} />
+            {previewUrl ? "Sandbox running" : "Sandbox starting"}
           </Badge>
         </div>
       </header>
@@ -397,12 +467,26 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
               <ChatMessage key={msg.id} msg={msg} />
             ))}
             {sending && (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                  <Sparkles className="h-3 w-3 text-primary" />
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                    <Sparkles className="h-3 w-3 text-primary" />
+                  </div>
+                  <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                  <span className="text-xs truncate">{liveStatus ?? "Building..."}</span>
                 </div>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-xs">Building...</span>
+                {liveStatus && liveStatus.startsWith("Writing") && (
+                  <div className="ml-8 flex items-center gap-1.5 text-[11px] text-primary/70">
+                    <FileCode2 className="h-3 w-3 shrink-0" />
+                    <span className="font-mono truncate">{liveStatus.replace("Writing ", "")}</span>
+                  </div>
+                )}
+                {liveStatus && liveStatus.startsWith("Running") && (
+                  <div className="ml-8 flex items-center gap-1.5 text-[11px] text-amber-500/80">
+                    <Terminal className="h-3 w-3 shrink-0" />
+                    <span className="font-mono truncate">{liveStatus.replace("Running: ", "")}</span>
+                  </div>
+                )}
               </div>
             )}
             <div ref={messagesEndRef} />
@@ -457,9 +541,9 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
           </div>
           <div className="flex-1 overflow-hidden">
             {rightTab === "preview" ? (
-              <PreviewPanel projectId={projectId} />
+              <PreviewPanel previewUrl={previewUrl} onReload={reloadPreview} isSending={sending} />
             ) : (
-              <CodePanel />
+              <CodePanel projectId={projectId} refreshKey={codeRefreshKey} />
             )}
           </div>
         </div>

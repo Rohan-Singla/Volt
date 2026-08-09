@@ -55,7 +55,7 @@ export default function SigninPage() {
         <div className="text-center space-y-2">
           <Link href="/" className="inline-flex items-center gap-2 text-foreground hover:text-primary transition-colors">
             <Sparkles className="h-6 w-6 text-primary" />
-            <span className="text-xl font-semibold">Lovable</span>
+            <span className="text-xl font-semibold">Volt</span>
           </Link>
           <p className="text-sm text-muted-foreground">Welcome back — sign in to continue</p>
         </div>

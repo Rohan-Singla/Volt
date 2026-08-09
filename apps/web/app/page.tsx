@@ -51,7 +51,7 @@ export default function HomePage() {
     const trimmed = value.trim();
     if (!trimmed) return;
     if (username) {
-      router.push("/dashboard");
+      router.push(`/dashboard?prompt=${encodeURIComponent(trimmed)}`);
     } else {
       setPending(trimmed);
       setAuthOpen(true);
@@ -79,21 +79,35 @@ export default function HomePage() {
       <header className="relative z-10 flex items-center justify-between px-5 py-4">
         <div className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-primary" />
-          <span className="font-semibold text-sm text-foreground">Lovable</span>
+          <span className="font-semibold text-sm text-foreground">Volt</span>
         </div>
         <div className="flex items-center gap-2 text-sm">
-          <button
-            onClick={() => { setPending(""); setAuthOpen(true); }}
-            className="text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5"
-          >
-            Sign in
-          </button>
-          <button
-            onClick={() => { setPending(""); setAuthOpen(true); }}
-            className="bg-primary text-primary-foreground text-xs font-medium px-3 py-1.5 rounded-md hover:bg-primary/90 transition-colors"
-          >
-            Get started
-          </button>
+          {username ? (
+            <>
+              <span className="text-muted-foreground hidden sm:block">{username}</span>
+              <Link
+                href="/dashboard"
+                className="bg-primary text-primary-foreground text-xs font-medium px-3 py-1.5 rounded-md hover:bg-primary/90 transition-colors"
+              >
+                Dashboard
+              </Link>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => { setPending(""); setAuthOpen(true); }}
+                className="text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5"
+              >
+                Sign in
+              </button>
+              <button
+                onClick={() => { setPending(""); setAuthOpen(true); }}
+                className="bg-primary text-primary-foreground text-xs font-medium px-3 py-1.5 rounded-md hover:bg-primary/90 transition-colors"
+              >
+                Get started
+              </button>
+            </>
+          )}
         </div>
       </header>
 
@@ -104,7 +118,7 @@ export default function HomePage() {
             <span className="text-primary">build?</span>
           </h1>
           <p className="text-muted-foreground text-base">
-            Describe your app and AI will write, run, and preview it live.
+            Describe your app and Volt will write, run, and preview it live.
           </p>
         </div>
 
@@ -146,7 +160,7 @@ export default function HomePage() {
           </div>
 
           <p className="text-center text-xs text-muted-foreground mt-3">
-            Press <kbd className="px-1.5 py-0.5 rounded bg-muted border border-border font-mono text-[10px]">↵</kbd> to build — you&apos;ll be asked to sign in first
+            Press <kbd className="px-1.5 py-0.5 rounded bg-muted border border-border font-mono text-[10px]">↵</kbd> to build with Volt — you&apos;ll be asked to sign in first
           </p>
         </div>
 

@@ -9,6 +9,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true,
+    port: 5173,
+    strictPort: true,
     allowedHosts: true,
   },
 })
@@ -37,17 +39,42 @@ const INDEX_CSS = `@tailwind base;
 
 const APP_CSS = ``;
 
-export async function getOrCreateSandbox(sandboxId: string | null): Promise<Sandbox> {
+export async function getOrCreateSandbox(
+  sandboxId: string | null
+): Promise<{ sandbox: Sandbox; isNew: boolean }> {
   if (sandboxId) {
     try {
       const sandbox = await Sandbox.connect(sandboxId);
       await sandbox.setTimeout(SANDBOX_TIMEOUT);
-      return sandbox;
+      return { sandbox, isNew: false };
     } catch {}
   }
   const sandbox = await Sandbox.create({ timeoutMs: SANDBOX_TIMEOUT });
   await bootstrapSandbox(sandbox);
-  return sandbox;
+  return { sandbox, isNew: true };
+}
+
+export async function readAllSandboxFiles(
+  sandbox: Sandbox
+): Promise<{ path: string; content: string }[]> {
+  const fullPaths = await listFiles(sandbox, "/home/user/app/src");
+  const files = await Promise.all(
+    fullPaths.map(async (fullPath) => ({
+      path: fullPath.replace("/home/user/app/", ""),
+      content: await readFile(sandbox, fullPath),
+    }))
+  );
+  return files;
+}
+
+export async function restoreFilesToSandbox(
+  sandbox: Sandbox,
+  files: { path: string; content: string }[]
+): Promise<void> {
+  for (const file of files) {
+    await sandbox.files.write(`/home/user/app/${file.path}`, file.content);
+  }
+  console.log(`[sandbox] restored ${files.length} files`);
 }
 
 async function bootstrapSandbox(sandbox: Sandbox) {
@@ -109,6 +136,18 @@ export async function ensureDevServer(sandbox: Sandbox): Promise<void> {
   }).catch(() => {});
 
   await waitUntilReady(sandbox);
+}
+
+export async function listFiles(sandbox: Sandbox, dir: string): Promise<string[]> {
+  try {
+    const result = await sandbox.commands.run(
+      `find ${dir} -type f | sort`,
+      { timeoutMs: 10000 }
+    );
+    return result.stdout.trim().split("\n").filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 export async function readFile(sandbox: Sandbox, path: string): Promise<string> {

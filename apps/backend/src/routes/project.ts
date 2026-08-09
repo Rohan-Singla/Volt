@@ -1,9 +1,15 @@
-import { Router } from "express";
+import { Router, Response } from "express";
 import { z } from "zod";
 import { prisma } from "@repo/db";
 import { requireAuth, AuthRequest } from "../middleware/auth.js";
-import { getOrCreateSandbox, getPreviewUrl, ensureDevServer } from "../lib/sandbox.js";
-import { runAILoop, ConversationEntry } from "../lib/ai.js";
+import { getOrCreateSandbox, getPreviewUrl, ensureDevServer, readAllSandboxFiles, restoreFilesToSandbox } from "../lib/sandbox.js";
+import { runAILoop, ConversationEntry, StreamEvent } from "../lib/ai.js";
+import { snapshotToR2, listFromR2, readFromR2, restoreFromR2, deleteProjectFiles } from "../lib/r2.js";
+
+function sse(res: Response, event: StreamEvent) {
+  res.write(`data: ${JSON.stringify(event)}\n\n`);
+  (res as Response & { flush?: () => void }).flush?.();
+}
 
 export const projectRouter = Router();
 
@@ -60,6 +66,50 @@ projectRouter.get("/projects/:projectId", requireAuth, async (req: AuthRequest, 
   res.json(project);
 });
 
+projectRouter.delete("/projects/:projectId", requireAuth, async (req: AuthRequest, res) => {
+  const project = await prisma.project.findFirst({
+    where: { id: req.params.projectId as string, userId: req.userId! },
+  });
+  if (!project) { res.status(404).json({ message: "Project not found" }); return; }
+
+  await prisma.conversationHistory.deleteMany({ where: { projectId: project.id } });
+  await prisma.project.delete({ where: { id: project.id } });
+  await deleteProjectFiles(project.id).catch(() => {});
+
+  res.json({ ok: true });
+});
+
+projectRouter.get("/projects/:projectId/files", requireAuth, async (req: AuthRequest, res) => {
+  const project = await prisma.project.findFirst({
+    where: { id: req.params.projectId as string, userId: req.userId! },
+    select: { id: true },
+  });
+  if (!project) { res.json({ files: [] }); return; }
+  try {
+    const paths = await listFromR2(project.id);
+    res.json({ files: paths.map((p) => `/home/user/app/${p}`) });
+  } catch {
+    res.json({ files: [] });
+  }
+});
+
+projectRouter.get("/projects/:projectId/file", requireAuth, async (req: AuthRequest, res) => {
+  const filePath = req.query.path as string;
+  if (!filePath) { res.status(400).json({ message: "path required" }); return; }
+  const project = await prisma.project.findFirst({
+    where: { id: req.params.projectId as string, userId: req.userId! },
+    select: { id: true },
+  });
+  if (!project) { res.status(404).json({ message: "not found" }); return; }
+  try {
+    const r2Path = filePath.replace("/home/user/app/", "");
+    const content = await readFromR2(project.id, r2Path);
+    res.json({ content });
+  } catch {
+    res.status(404).json({ message: "file not found" });
+  }
+});
+
 projectRouter.post("/projects/:projectId/messages", requireAuth, async (req: AuthRequest, res) => {
   const schema = z.object({ message: z.string().min(1) });
   const result = schema.safeParse(req.body);
@@ -68,71 +118,85 @@ projectRouter.post("/projects/:projectId/messages", requireAuth, async (req: Aut
     return;
   }
 
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+  if (res.socket) res.socket.setNoDelay(true);
+
   try {
-  const project = await prisma.project.findFirst({
-    where: { id: req.params.projectId as string, userId: req.userId! },
-    include: {
-      conversationHistory: {
-        where: { hidden: false },
-        orderBy: { createdAt: "asc" },
+    const project = await prisma.project.findFirst({
+      where: { id: req.params.projectId as string, userId: req.userId! },
+      include: {
+        conversationHistory: {
+          where: { hidden: false },
+          orderBy: { createdAt: "asc" },
+        },
       },
-    },
-  });
+    });
 
-  if (!project) {
-    res.status(404).json({ message: "Project not found" });
-    return;
-  }
+    if (!project) {
+      sse(res, { type: "done", aiText: "Project not found.", previewUrl: "" });
+      res.end();
+      return;
+    }
 
-  await prisma.conversationHistory.create({
-    data: {
-      projectId: project.id,
-      type: "TEXT_MESSAGE",
-      from: "USER",
-      contents: result.data.message,
-    },
-  });
+    await prisma.conversationHistory.create({
+      data: {
+        projectId: project.id,
+        type: "TEXT_MESSAGE",
+        from: "USER",
+        contents: result.data.message,
+      },
+    });
 
-  const isNew = !project.sandboxId;
-  const sandbox = await getOrCreateSandbox(project.sandboxId ?? null);
-
-  if (isNew) {
+    sse(res, { type: "status", text: "Starting sandbox..." });
+    const { sandbox, isNew } = await getOrCreateSandbox(project.sandboxId ?? null);
     const previewUrl = getPreviewUrl(sandbox);
+
     await prisma.project.update({
       where: { id: project.id },
       data: { sandboxId: sandbox.sandboxId, previewUrl },
     });
-  }
 
-  await ensureDevServer(sandbox);
+    if (isNew && project.sandboxId) {
+      sse(res, { type: "status", text: "Restoring project files..." });
+      const saved = await restoreFromR2(project.id);
+      if (saved.length > 0) await restoreFilesToSandbox(sandbox, saved);
+    }
 
-  const history: ConversationEntry[] = project.conversationHistory.map((h: { from: string; contents: string }) => ({
-    role: h.from === "USER" ? "user" : "model",
-    content: h.contents,
-  }));
+    sse(res, { type: "status", text: "Starting dev server..." });
+    await ensureDevServer(sandbox);
+    sse(res, { type: "status", text: "AI is building..." });
 
-  const aiResponse = await runAILoop(sandbox, history, result.data.message);
+    const history: ConversationEntry[] = project.conversationHistory.map((h: { from: string; contents: string }) => ({
+      role: h.from === "USER" ? "user" : "model",
+      content: h.contents,
+    }));
 
-  const saved = await prisma.conversationHistory.create({
-    data: {
-      projectId: project.id,
-      type: "TEXT_MESSAGE",
-      from: "ASSISTANT",
-      contents: aiResponse,
-    },
-  });
+    const aiResponse = await runAILoop(sandbox, history, result.data.message, (event) => {
+      sse(res, event);
+    });
 
-  const updatedProject = await prisma.project.findFirst({
-    where: { id: project.id },
-    select: { previewUrl: true },
-  });
+    const saved = await prisma.conversationHistory.create({
+      data: {
+        projectId: project.id,
+        type: "TEXT_MESSAGE",
+        from: "ASSISTANT",
+        contents: aiResponse,
+      },
+    });
 
-  res.json({
-    message: saved,
-    previewUrl: updatedProject?.previewUrl,
-  });
+    const projectFiles = await readAllSandboxFiles(sandbox);
+    await snapshotToR2(project.id, projectFiles);
+
+    console.log(`[project] previewUrl: ${previewUrl}`);
+    res.write(`data: ${JSON.stringify({ type: "done", aiText: aiResponse, previewUrl, messageId: saved.id })}\n\n`);
   } catch (err) {
     console.error("Message handler error:", err);
-    res.status(500).json({ message: String(err) });
+    sse(res, { type: "done", aiText: `Error: ${String(err)}`, previewUrl: "" });
+  } finally {
+    res.end();
   }
 });
