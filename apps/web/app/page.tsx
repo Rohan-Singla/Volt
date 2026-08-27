@@ -29,11 +29,18 @@ export default function HomePage() {
   const [authOpen, setAuthOpen] = useState(false);
   const [pending, setPending] = useState("");
   const [username, setUsername] = useState<string | null>(null);
+  const [notice, setNotice] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     const payload = getPayload();
     if (payload) setUsername(payload.username);
+
+    // proxy.ts redirects here with ?auth=... when it turns away a protected
+    // route. Without this the bounce is silent and looks like nothing happened.
+    const reason = new URLSearchParams(window.location.search).get("auth");
+    if (reason === "expired") setNotice("Your session expired. Sign in to continue.");
+    else if (reason === "required") setNotice("Sign in to continue.");
   }, []);
 
   function autoResize() {
@@ -67,7 +74,10 @@ export default function HomePage() {
 
   function onAuthSuccess() {
     setAuthOpen(false);
-    router.push("/dashboard");
+    setNotice("");
+    // Return the user to whatever proxy.ts turned them away from.
+    const next = new URLSearchParams(window.location.search).get("next");
+    router.push(next?.startsWith("/") ? next : "/dashboard");
   }
 
   return (
@@ -112,6 +122,15 @@ export default function HomePage() {
       </header>
 
       <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 pb-20 gap-10">
+        {notice && (
+          <div
+            role="status"
+            className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-200"
+          >
+            {notice}
+          </div>
+        )}
+
         <div className="text-center space-y-3 max-w-xl">
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-tight">
             What do you want to{" "}
